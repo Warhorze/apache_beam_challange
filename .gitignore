@@ -1,3 +1,4 @@
 *.tfstate*
 credentials.json
 codingchallence*
+.ipynb*
