@@ -12,13 +12,22 @@ resource "random_id" "bucket_prefix" {
 resource "google_storage_bucket" "static" {
   name          = "${random_id.bucket_prefix.hex}-bucket"
   location      = "EU"
-  storage_class = "COLDLINE"
+  storage_class = "STANDARD"
+
   labels = {
     environment = "development"
     creator = "wesley"
     project = "codingchallange"
   }
   uniform_bucket_level_access = true
+}
+
+
+
+
+output project_Id {
+  value       = var.project_id
+  description = "project id name"
 }
 output bucket_name {
   value       = google_storage_bucket.static.name

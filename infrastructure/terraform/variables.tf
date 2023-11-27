@@ -9,3 +9,5 @@ variable region {
   default     = "eu-west3"
   description = "gcp default region"
 }
+
+
