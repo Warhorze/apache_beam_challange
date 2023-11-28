@@ -1,4 +1,5 @@
 
+#don't forget to pass the service principle variables 
 import argparse
 import logging
 import re
@@ -9,56 +10,41 @@ from apache_beam.io.gcp.internal.clients import bigquery
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.options.pipeline_options import SetupOptions
 
-# Set your GCP project and region
-PROJECT = 'codingchallence'
-REGION = 'europe-central2'
-BUCKET = 'ml6wra-bucket'
-
-BQ_PROJECT ="bigquery-public-data"
-BQ_DATASET = "london_bicycles"
-BQ_TABLE = "cycle_hire"
-
-
 
 def main(argv=None, save_main_session=True):
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--output',
-        dest='output',
-        default=output_path,
-        help='Output file to write results to.')
+    parser.add_argument('--project', dest='project',required=True, help='GCP Project ID')
+    parser.add_argument('--region', dest='region',required=True, help='GCP Region')
+    parser.add_argument('--bucket', dest= 'bucket',required=True, help= "bucket to store the data")
+    parser.add_argument('--bq_table', dest='bq_table',required=True, help='BigQuery Table')
+    parser.add_argument('--output', dest='output',default= 'output', help='Output file to write results to.')
 
     known_args, pipeline_args = parser.parse_known_args(argv)
-
     # Add runner, project, and region options directly to pipeline_args
     pipeline_args.extend([
         f'--runner=DataflowRunner',
-        f'--project={PROJECT}',
-        f'--region={REGION}',
-        f'--temp_location=gs://{BUCKET}/temp',
-        f'--staging_location=gs://{BUCKET}/staging'
+        f'--project={known_args.project}',
+        f'--region={known_args.region}',
+        f'--temp_location=gs://{known_args.bucket}/temp',
+        f'--staging_location=gs://{known_args.bucket}/staging'
     ])
 
     pipeline_options = PipelineOptions(pipeline_args)
     pipeline_options.view_as(SetupOptions).save_main_session = save_main_session
 
-    table_spec = bigquery.TableReference(
-        projectId=BQ_PROJECT,
-        datasetId=BQ_DATASET,
-        tableId=BQ_TABLE
-    )
+    count_query= f"""
+        SELECT start_station_id, end_station_id, COUNT(*) as amount_of_rides
+        FROM {known_args.bq_table}
+        GROUP BY start_station_id, end_station_id
+        ORDER BY amount_of_rides DESC
+        LIMIT 100; 
+        """
     with beam.Pipeline(options=pipeline_options) as p:
-        # Read data from BigQuery into a PCollection.
-        rows = p | 'ReadFromBigQuery' >> beam.io.ReadFromBigQuery(table=table_spec)
-
-        row_count = (
-            rows
-            | 'CountRows' >> beam.combiners.Count.Globally()
-            | 'FormatCount' >> beam.Map(lambda count: f'Row count: {count}')
+        rows = p | 'ReadFromBigQuery' >> beam.io.ReadFromBigQuery(
+        query = count_query,
+        use_standard_sql = True
         )
-
-        # Write the output to GCS
-        row_count | 'WriteToGCS' >> WriteToText(known_args.output)
+        rows | 'WriteToGCS' >> WriteToText(f"gs://{known_args.bucket}/{known_args.output}/easy.txt")
 
 
 if __name__ == '__main__':
