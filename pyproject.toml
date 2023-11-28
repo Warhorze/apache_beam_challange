@@ -10,6 +10,7 @@ packages = [{include = "ml6_challange"}]
 python = "^3.11"
 jupyter = "^1.0.0"
 apache-beam = {extras = ["interactive"], version = "^2.52.0"}
+geopy = "^2.4.1"
 
 
 [build-system]
