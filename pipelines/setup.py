@@ -6,8 +6,8 @@ setup(
 name='Coding-Challenge',
 version='1.0',
 install_requires=[
-'apache-beam[gcp]==2.13.0',
-'geopy==1.18.0',
+'apache-beam[gcp]==2.52.0',
+'geopy==2.4.1',
 ],
 packages=find_packages(exclude=['notebooks']),
 py_modules=['config'],
