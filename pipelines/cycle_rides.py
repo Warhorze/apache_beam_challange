@@ -1,4 +1,4 @@
-#don't forget to pass the service principle variables 
+#don't forget to pass the service principle variables toe the global env q
 import argparse
 import logging
 import re
@@ -14,31 +14,6 @@ from apache_beam.options.pipeline_options import SetupOptions
 # Define column names as constants
 START_STATION_COL = "start_station_name"
 END_STATION_COL = "end_station_name"
-
-def format_output(element):
-    """
-    Formats the output for each element in the PCollection.
-
-    :param element: A tuple containing the key (start and end station names) and the count.
-    :return: A dictionary with formatted output.
-    """
-    start_station, end_station, count = element
-    return {
-        START_STATION_COL: start_station,
-        END_STATION_COL: end_station,
-        "amount_of_rides": count
-    }
-
-import argparse
-import logging
-import re
-
-import apache_beam as beam
-from apache_beam.io import WriteToText
-from apache_beam.io.gcp.internal.clients import bigquery
-from apache_beam.options.pipeline_options import PipelineOptions
-from apache_beam.options.pipeline_options import SetupOptions
-
 
 def main(argv=None, save_main_session=True):
     parser = argparse.ArgumentParser()
@@ -56,7 +31,7 @@ def main(argv=None, save_main_session=True):
         f'--region={known_args.region}',
         f'--temp_location=gs://{known_args.bucket}/temp',
         f'--staging_location=gs://{known_args.bucket}/staging',
-         f'--setup_file=/home/ron/Documents/projects/ml6_challange/pipelines/setup.py'#tried to set-up on gcp stroage
+         f'--setup_file=/home/ron/Documents/projects/ml6_challange/pipelines/setup.py'#tried to set-up on gcp stroage and I know should not be hard coded
     ])
 
     pipeline_options = PipelineOptions(pipeline_args)
@@ -74,12 +49,13 @@ def main(argv=None, save_main_session=True):
 
         total_rides = (
             rides
-            | 'Get key column' >> beam.Map(lambda x: (x[START_STATION_COL], x[END_STATION_COL]))
-            | 'Count elements per trip' >> beam.combiners.Count.PerElement()
-            | 'Format Output' >> beam.Map(format_output)
-            | 'Top N Trips' >> beam.transforms.combiners.Top.Of(known_args.top_n, key=lambda x: x["amount_of_rides"]) # this is not a very scalable solution.
+            | 'Get trips column' >> beam.Map(lambda x: (x[START_STATION_COL], x[END_STATION_COL])) \
+            | 'Count elements per trip' >> beam.combiners.Count.PerElement() \
+            | 'map key-value pairs' >> beam.Map(lambda x: (x[0], x[1]))  \
+            | "Sort by count" >> beam.transforms.combiners.Top.Of(known_args.top_n, key=lambda x: x[1]) \
             | "Flatten to dicts" >> beam.FlatMap(lambda x: x) \
             | "Rename Columns" >> beam.Map(lambda x: {START_STATION_COL: x[0][1],END_STATION_COL: x[0][0], "amount_of_rides" : x[1]})
+
         )
 
         total_rides | 'WriteToGCS' >> WriteToText(f"gs://{known_args.bucket}/output/{known_args.output}", file_name_suffix=".txt")
