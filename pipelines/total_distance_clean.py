@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+=======
+#don't forget to pass the service principle variables 
+>>>>>>> fbee9b4 (feat: final pipeline runs sofar so good)
 import argparse
 import logging
 import re
@@ -7,9 +11,15 @@ import apache_beam as beam
 from apache_beam.io import WriteToText
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.options.pipeline_options import SetupOptions
+<<<<<<< HEAD
 from geopy.distance import geodesic
 
 # Define column names as constants becasue the ids contain nan's and they might ask me to run it with the acutal id's
+=======
+
+
+# Define column names as constants
+>>>>>>> fbee9b4 (feat: final pipeline runs sofar so good)
 START_STATION_COL = "start_station_name"
 END_STATION_COL = "end_station_name"
 
@@ -27,6 +37,7 @@ class CalculateTotalDistance(beam.DoFn):
         
         yield (key, total_distance)
 
+<<<<<<< HEAD
 def calculate_euclidean_distance(point1, point2):
     coord1 = (point1['latitude'], point1['longitude'])
     coord2 = (point2['latitude'], point2['longitude'])
@@ -43,6 +54,8 @@ class CalculateDist(beam.DoFn):
                        START_STATION_COL: name1, 
                        END_STATION_COL :  name2,
                       'distance': distance}
+=======
+>>>>>>> fbee9b4 (feat: final pipeline runs sofar so good)
 
 
 def main(argv=None, save_main_session=True):
@@ -70,6 +83,7 @@ def main(argv=None, save_main_session=True):
 
     
     with beam.Pipeline(options=pipeline_options) as pipeline:
+<<<<<<< HEAD
         # Count and sort the total number of rides to each station
         cycle_query= f"""
             SELECT {START_STATION_COL}, {END_STATION_COL}
@@ -113,16 +127,33 @@ def main(argv=None, save_main_session=True):
         # Multiply the total number rides by the distance between the stations.
         result = (
         ( total_rides,  distance)
+=======
+        rides =  pipeline | "Get unqiue stations from BigQuery" >> beam.io.ReadFromText(file_pattern= f'gs://{known_args.bucket}/output/{known_args.rides}.txt') \
+        | "Create Shared Key for  Rides" >> beam.Map(lambda x: ((x[START_STATION_COL], x[END_STATION_COL]), x["amount_of_rides"]))
+        distance =  pipeline | "Get unqiue stations from GCP" >> beam.io.ReadFromText(file_pattern= f'gs://{known_args.bucket}/output/{known_args.distance}.txt')
+        
+        result = (
+        ( rides,  distance)
+>>>>>>> fbee9b4 (feat: final pipeline runs sofar so good)
         | "Group by Key" >> beam.CoGroupByKey()
         | "Explode column" >> beam.Map(lambda x: (x[0],( x[1][0], x[1][1])))
         | "Calculate Total Distance" >> beam.ParDo(CalculateTotalDistance())
         | "Sort by total distances" >> beam.transforms.combiners.Top.Of(100, key=lambda x: x[1]) 
+<<<<<<< HEAD
         | "Transpose" >> beam.FlatMap(lambda x: x) \
         | "Format" >> beam.Map(lambda x: {START_STATION_COL: x[0][1],END_STATION_COL: x[0][0], "total_distance" : x[1]})# this needs to be 
+=======
+        | "Flatten to dicts" >> beam.FlatMap(lambda x: x) \
+        | "Rename Columns" >> beam.Map(lambda x: {START_STATION_COL: x[0][1],END_STATION_COL: x[0][0], "amount_of_rides" : x[1]})
+>>>>>>> fbee9b4 (feat: final pipeline runs sofar so good)
         )
         result | 'WriteToGCS' >> WriteToText(f"gs://{known_args.bucket}/output/{known_args.output}", file_name_suffix=".txt")
         
         
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
+<<<<<<< HEAD
     main()
+=======
+    main()
+>>>>>>> fbee9b4 (feat: final pipeline runs sofar so good)
