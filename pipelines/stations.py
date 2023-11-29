@@ -74,7 +74,8 @@ def main(argv=None, save_main_session=True):
             cross_join | 'Calculate distance' >> beam.ParDo(CalculateDist()) 
                               | "Create shared key for distance" >> beam.Map(lambda x: ((x[START_STATION_COL], x[END_STATION_COL]),x['distance']))
         )
-        distance | 'WriteToGCS' >> WriteToText(known_args.output, file_name_suffix=".txt")
+        distance | 'WriteToGCS' >> WriteToText(f"gs://{known_args.bucket}/output/{known_args.output}", file_name_suffix=".txt")
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)

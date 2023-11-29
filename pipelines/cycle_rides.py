@@ -57,7 +57,7 @@ def main(argv=None, save_main_session=True):
             | "Rename Columns" >> beam.Map(lambda x: {START_STATION_COL: x[0][1],END_STATION_COL: x[0][0], "amount_of_rides" : x[1]})
 
         )
-
+        
         total_rides | 'WriteToGCS' >> WriteToText(f"gs://{known_args.bucket}/output/{known_args.output}", file_name_suffix=".txt")
 
 if __name__ == '__main__':
