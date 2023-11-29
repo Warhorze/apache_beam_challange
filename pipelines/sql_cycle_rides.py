@@ -26,7 +26,8 @@ def main(argv=None, save_main_session=True):
         f'--project={known_args.project}',
         f'--region={known_args.region}',
         f'--temp_location=gs://{known_args.bucket}/temp',
-        f'--staging_location=gs://{known_args.bucket}/staging'
+        f'--staging_location=gs://{known_args.bucket}/staging',
+        f'--setup_file=/home/ron/Documents/projects/ml6_challange/src/setup.py'
     ])
 
     pipeline_options = PipelineOptions(pipeline_args)
