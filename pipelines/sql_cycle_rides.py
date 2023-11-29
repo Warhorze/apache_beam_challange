@@ -20,7 +20,6 @@ def main(argv=None, save_main_session=True):
     parser.add_argument('--output', dest='output',default= 'output', help='Output file to write results to.')
 
     known_args, pipeline_args = parser.parse_known_args(argv)
-    # Add runner, project, and region options directly to pipeline_args
     pipeline_args.extend([
         f'--runner=DataflowRunner',
         f'--project={known_args.project}',
