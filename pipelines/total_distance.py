@@ -10,9 +10,6 @@ from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.options.pipeline_options import SetupOptions
 from geopy.distance import geodesic
 
-# Define column names as constants becasue the ids contain nan's and they might ask me to run it with the acutal id's
-
-
 
 
 class CalculateDistanceAllRides(beam.DoFn):
