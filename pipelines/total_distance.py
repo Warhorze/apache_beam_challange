@@ -42,7 +42,7 @@ def calculate_euclidean_distance(point1, point2):
     coord1 = (point1['latitude'], point1['longitude'])
     coord2 = (point2['latitude'], point2['longitude'])
     distance = geodesic(coord1,coord2).kilometers
-    return distance, point1['name'], point2['name']
+    return distance, point1['id'], point2['id']
 
 
 def format_csv(join_list):
@@ -89,7 +89,7 @@ def main(argv=None, save_main_session=True):
         )
         
         station_query= """
-            SELECT latitude, longitude, name 
+            SELECT latitude, longitude, id 
             FROM bigquery-public-data.london_bicycles.cycle_stations;
             """
         # Calcualte the distance between each station
@@ -108,7 +108,6 @@ def main(argv=None, save_main_session=True):
         result = (
              (total_rides,  distance)
                 | "Group by Key" >> beam.CoGroupByKey()
-                | "Explode column" >> beam.Map(lambda x: (x[0],( x[1][0], x[1][1])))
                 | "Calculate Total Distance" >> beam.ParDo(CalculateDistanceAllRides())
             #   | "Sort by total distances" >> beam.transforms.combiners.Top.Of(100, key=lambda x: x[1]) 
             #   | "Flatten to dicts" >> beam.FlatMap(lambda x: x) 
@@ -117,7 +116,10 @@ def main(argv=None, save_main_session=True):
 
         result | 'WriteToGCS' >> WriteToText(f"gs://{known_args.bucket}/output/{known_args.output}",
                                               file_name_suffix=".txt",
-                                              header="{START_STATION_COL},{END_STATION_COL}, amount_of_rides, total_distance_between_stations")
+                                              num_shards=0,
+                                              shard_name_template='')
+                                              
+                                            #  header=f"{START_STATION_COL},{END_STATION_COL},amount_of_rides,total_distance_between_stations")
         
         
 if __name__ == '__main__':
