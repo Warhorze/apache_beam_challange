@@ -57,12 +57,18 @@ def main(argv=None, save_main_session=True):
         )
         
 <<<<<<< HEAD
+<<<<<<< HEAD
         total_rides | 'WriteToGCS' >> WriteToText(f"gs://{known_args.bucket}/output/{known_args.output}",
                                                    file_name_suffix=".csv",
                                                    header=f"{START_STATION_COL},{END_STATION_COL}, amount_of_rides")
 =======
         total_rides | 'WriteToGCS' >> WriteToText(f"gs://{known_args.bucket}/output/{known_args.output}", file_name_suffix=".txt")
 >>>>>>> 60a70f6ca2783fda5cd13fbc0748c89d8cbfd956
+=======
+        total_rides | 'WriteToGCS' >> WriteToText(f"gs://{known_args.bucket}/output/{known_args.output}",
+                                                   file_name_suffix=".csv",
+                                                   header=f"{START_STATION_COL},{END_STATION_COL}, amount_of_rides")
+>>>>>>> cf6babe (feat: finished the hard example)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)

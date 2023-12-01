@@ -23,39 +23,27 @@ class CalculateDistanceAllRides(beam.DoFn):
 
         if isinstance(ride_count, (int, float)) and isinstance(distance_value, (int, float)):
             total_distance = ride_count * distance_value
-            total_rides =ride_count if isinstance(ride_count, (int, float)) else 0
-       
         
         
-        yield (key, total_rides, total_distance)
+        yield (key, total_distance)
 
-class CalculateDistanceBetweenStations(beam.DoFn):
-    """Calculate the distance between stations"""
-    def process(self, element :Tuple):
+def calculate_euclidean_distance(point1, point2):
+    coord1 = (point1['latitude'], point1['longitude'])
+    coord2 = (point2['latitude'], point2['longitude'])
+    distance = geodesic(coord1,coord2).kilometers
+    return distance, point1['name'], point2['name']
+
+class CalculateDist(beam.DoFn):
+    def process(self, element):
         _, values = element
         for v1 in values['pc1']:
             for v2 in values['pc2']:
                 distance, name1, name2 = calculate_euclidean_distance(v1, v2)
-                yield ((name1, name2), distance)
+                yield {
+                       START_STATION_COL: name1, 
+                       END_STATION_COL :  name2,
+                      'distance': distance}
 
-
-def calculate_euclidean_distance(point1 : Dict, point2: Dict):
-    """Calculate the distance between two coordinate tuples """
-    #Hard coded 'id' anoys me should use functtools.partial to prepack the 'name' col
-    coord1 = (point1['latitude'], point1['longitude'])
-    coord2 = (point2['latitude'], point2['longitude'])
-    distance = geodesic(coord1,coord2).kilometers
-    return distance, point1['id'], point2['id']
-    
-
-def format_csv(elements : Tuple):
-    """Format as csv"""
-    return ','.join([str(x) for x in elements])  
-
-
-def remove_none(elements : Tuple):
-    """Returns True if containing None values"""
-    return all([y is not None for y in elements])  
 
 def main(argv=None, save_main_session=True):
     parser = argparse.ArgumentParser()
@@ -112,13 +100,17 @@ def main(argv=None, save_main_session=True):
                             use_standard_sql = True
         )
 
-        pc_with_key =( stations
-                            | 'Remove empty elements' >> beam.Filter(lambda x: remove_none(x)) 
-                            | 'Add Key' >> beam.Map(lambda x: ('key', x ) )
-                    )
-        distance = {'pc1': pc_with_key, 'pc2': pc_with_key} \
-                                | beam.CoGroupByKey() \
-                                | 'Calculate distance' >> beam.ParDo(CalculateDistanceBetweenStations())
+        pc1_with_key = stations | 'AddKey1' >> beam.Map(lambda x: ('key', x ))
+        pc2_with_key = stations | 'AddKey2' >> beam.Map(lambda x: ('key', x ))
+
+        cross_join = {'pc1': pc1_with_key, 'pc2': pc2_with_key} | beam.CoGroupByKey()
+
+        distance = (
+            cross_join | 'Calculate distance' >> beam.ParDo(CalculateDist()) 
+                       | "Create shared key for distance" >> beam.Map(lambda x: ((x[START_STATION_COL], x[END_STATION_COL]),x['distance']))
+        )
+        
+        # Multiply the total number rides by the distance between the stations.
         result = (
              (total_rides,  distance)
                 | "Group by Key" >> beam.CoGroupByKey()
