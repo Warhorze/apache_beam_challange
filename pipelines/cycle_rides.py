@@ -9,11 +9,9 @@ from apache_beam.io import WriteToText
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.options.pipeline_options import SetupOptions
 
-
-
 # Define column names as constants
-START_STATION_COL = "start_station_name"
-END_STATION_COL = "end_station_name"
+START_STATION_COL = "start_station_id"
+END_STATION_COL = "end_station_id"
 
 def main(argv=None, save_main_session=True):
     parser = argparse.ArgumentParser()
@@ -49,16 +47,18 @@ def main(argv=None, save_main_session=True):
 
         total_rides = (
             rides
-            | 'Get trips column' >> beam.Map(lambda x: (x[START_STATION_COL], x[END_STATION_COL])) \
-            | 'Count elements per trip' >> beam.combiners.Count.PerElement() \
+            | 'Get stations column' >> beam.Map(lambda x: (x[START_STATION_COL], x[END_STATION_COL])) \
+            | 'Count elements per ride' >> beam.combiners.Count.PerElement() \
             | 'map key-value pairs' >> beam.Map(lambda x: (x[0], x[1]))  \
             | "Sort by count" >> beam.transforms.combiners.Top.Of(known_args.top_n, key=lambda x: x[1]) \
             | "Flatten to dicts" >> beam.FlatMap(lambda x: x) \
-            | "Rename Columns" >> beam.Map(lambda x: {START_STATION_COL: x[0][1],END_STATION_COL: x[0][0], "amount_of_rides" : x[1]})
+            | "Rename Columns" >> beam.Map(lambda x:(x[0][1], x[0][0],x[1]))
 
         )
         
-        total_rides | 'WriteToGCS' >> WriteToText(f"gs://{known_args.bucket}/output/{known_args.output}", file_name_suffix=".txt")
+        total_rides | 'WriteToGCS' >> WriteToText(f"gs://{known_args.bucket}/output/{known_args.output}",
+                                                   file_name_suffix=".csv",
+                                                   header=f"{START_STATION_COL},{END_STATION_COL}, amount_of_rides")
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
