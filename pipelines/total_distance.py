@@ -48,6 +48,9 @@ def calculate_euclidean_distance(point1, point2):
 def format_csv(join_list):
     return ','.join([str(x) for x in join_list])  
 
+def filter_none(join_list):
+    return all([y is not None for y in join_list])
+
 def main(argv=None, save_main_session=True):
     parser = argparse.ArgumentParser()
     parser.add_argument('--project', dest='project',required=True, help='GCP Project ID')
@@ -111,6 +114,7 @@ def main(argv=None, save_main_session=True):
                 | "Calculate Total Distance" >> beam.ParDo(CalculateDistanceAllRides())
             #   | "Sort by total distances" >> beam.transforms.combiners.Top.Of(100, key=lambda x: x[1]) 
             #   | "Flatten to dicts" >> beam.FlatMap(lambda x: x) 
+                | "Filter None" >> beam.Filter(lambda x: filter_none([x[0][0],x[0][1], x[1],x[2]])) # yup
                 | "Reformat Output" >> beam.Map(lambda x: format_csv([x[0][0],x[0][1], x[1],x[2]])) 
 )
 
@@ -118,7 +122,7 @@ def main(argv=None, save_main_session=True):
                                               file_name_suffix=".txt",
                                               num_shards=0,
                                               shard_name_template='')
-                                              
+
                                             #  header=f"{START_STATION_COL},{END_STATION_COL},amount_of_rides,total_distance_between_stations")
         
         
