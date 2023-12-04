@@ -1,3 +1,4 @@
+from typing import Tuple, Dict
 import argparse
 import logging
 import re
@@ -10,11 +11,13 @@ from apache_beam.options.pipeline_options import SetupOptions
 from geopy.distance import geodesic
 
 # Define column names as constants becasue the ids contain nan's and they might ask me to run it with the acutal id's
-START_STATION_COL = "start_station_id"
-END_STATION_COL = "end_station_id"
+
+
+
 
 class CalculateDistanceAllRides(beam.DoFn):
-    def process(self, element):
+    """ Calculate the total distance traveled for all rides """
+    def process(self, element: Tuple):
         key, (rides, distances) = element
         total_distance = 0
         total_rides = 0        
@@ -30,7 +33,8 @@ class CalculateDistanceAllRides(beam.DoFn):
         yield (key, total_rides, total_distance)
 
 class CalculateDistanceBetweenStations(beam.DoFn):
-    def process(self, element):
+    """Calculate the distance between stations"""
+    def process(self, element :Tuple):
         _, values = element
         for v1 in values['pc1']:
             for v2 in values['pc2']:
@@ -38,28 +42,31 @@ class CalculateDistanceBetweenStations(beam.DoFn):
                 yield ((name1, name2), distance)
 
 
-def calculate_euclidean_distance(point1, point2):
+def calculate_euclidean_distance(point1 : Dict, point2: Dict):
+    """Calculate the distance between two coordinate tuples """
+    #Hard coded 'id' anoys me should use functtools.partial to prepack the 'name' col
     coord1 = (point1['latitude'], point1['longitude'])
     coord2 = (point2['latitude'], point2['longitude'])
     distance = geodesic(coord1,coord2).kilometers
     return distance, point1['id'], point2['id']
+    
+
+def format_csv(elements : Tuple):
+    """Format as csv"""
+    return ','.join([str(x) for x in elements])  
 
 
-def format_csv(join_list):
-    return ','.join([str(x) for x in join_list])  
-
-def filter_none(join_list):
-    return all([y is not None for y in join_list])
+def remove_none(elements : Tuple):
+    """Returns True if containing None values"""
+    return all([y is not None for y in elements])  
 
 def main(argv=None, save_main_session=True):
     parser = argparse.ArgumentParser()
     parser.add_argument('--project', dest='project',required=True, help='GCP Project ID')
     parser.add_argument('--region', dest='region',required=True, help='GCP Region')
     parser.add_argument('--bucket', dest= 'bucket',required=True, help= "bucket to store the data")
-    parser.add_argument('--dist_file', dest='distance',required=True, help='table with')
-    parser.add_argument('--rides_file', dest='rides',required=True, help='table with')
     parser.add_argument('--output', dest='output',default= 'output', help='Output file to write results to.')
-    parser.add_argument('--top_n', dest="top_n",default= 100000, help='N top trips to select')
+    parser.add_argument('--input_col', dest="col",default= 'id', help='N top trips to select')
     known_args, pipeline_args = parser.parse_known_args(argv)
 
     pipeline_args.extend([
@@ -68,15 +75,19 @@ def main(argv=None, save_main_session=True):
         f'--region={known_args.region}',
         f'--temp_location=gs://{known_args.bucket}/temp',
         f'--staging_location=gs://{known_args.bucket}/staging',
-        f'--setup_file=/home/ron/Documents/projects/ml6_challange/pipelines/setup.py'#tried to set-up on gcp stroage and i know should not be hard coded
+        f'--setup_file=pipelines/setup.py'#tried to set-up on gcp stroage and i know should not be hard coded
     ])
+
+ 
 
     pipeline_options = PipelineOptions(pipeline_args)
     pipeline_options.view_as(SetupOptions).save_main_session = save_main_session
 
+    START_STATION_COL = f"start_station_{known_args.col}"
+    END_STATION_COL = f"end_station_{known_args.col}"
     
     with beam.Pipeline(options=pipeline_options) as pipeline:
-        # Count and sort the total number of rides to each station
+        # Count all rides to each station
         cycle_query= f"""
             SELECT {START_STATION_COL}, {END_STATION_COL}
             FROM bigquery-public-data.london_bicycles.cycle_hire;
@@ -87,42 +98,43 @@ def main(argv=None, save_main_session=True):
                         use_standard_sql = True
             )
         total_rides = (
-            rides   | 'Get trips column' >> beam.Map(lambda x: (x[START_STATION_COL], x[END_STATION_COL])) 
-                    | 'Count elements per trip' >> beam.combiners.Count.PerElement() 
-        )
+                        rides   | 'Get trips column' >> beam.Map(lambda x: (x[START_STATION_COL], x[END_STATION_COL]))
+                                | 'Remove none elements' >> beam.Filter(lambda x: remove_none(x)) 
+                                | 'Count elements per trip' >> beam.combiners.Count.PerElement() 
+            )
+
         
         station_query= """
             SELECT latitude, longitude, id 
             FROM bigquery-public-data.london_bicycles.cycle_stations;
             """
+        
         # Calcualte the distance between each station
         stations = pipeline | 'Read cycle_staiion From BigQuery' >> beam.io.ReadFromBigQuery( 
                             query = station_query,
                             use_standard_sql = True
         )
 
-        pc_with_key = stations | 'Add Key' >> beam.Map(lambda x: ('key', x ))
-        distance = (
-             {'pc1': pc_with_key, 'pc2': pc_with_key} 
-                | beam.CoGroupByKey()
-                | 'Calculate distance' >> beam.ParDo(CalculateDistanceBetweenStations())
-        )
-
+        pc_with_key =( stations
+                            | 'Remove empty elements' >> beam.Filter(lambda x: remove_none(x)) 
+                            | 'Add Key' >> beam.Map(lambda x: ('key', x ) )
+                    )
+        distance = {'pc1': pc_with_key, 'pc2': pc_with_key} \
+                                | beam.CoGroupByKey() \
+                                | 'Calculate distance' >> beam.ParDo(CalculateDistanceBetweenStations())
         result = (
              (total_rides,  distance)
                 | "Group by Key" >> beam.CoGroupByKey()
                 | "Calculate Total Distance" >> beam.ParDo(CalculateDistanceAllRides())
             #   | "Sort by total distances" >> beam.transforms.combiners.Top.Of(100, key=lambda x: x[1]) 
-            #   | "Flatten to dicts" >> beam.FlatMap(lambda x: x) 
-                | "Filter None" >> beam.Filter(lambda x: filter_none([x[0][0],x[0][1], x[1],x[2]])) # yup
+             #   | "Flatten to dicts" >> beam.FlatMap(lambda x: x) 
                 | "Reformat Output" >> beam.Map(lambda x: format_csv([x[0][0],x[0][1], x[1],x[2]])) 
-)
+        )
 
         result | 'WriteToGCS' >> WriteToText(f"gs://{known_args.bucket}/output/{known_args.output}",
                                               file_name_suffix=".txt",
                                               num_shards=0,
                                               shard_name_template='')
-
                                             #  header=f"{START_STATION_COL},{END_STATION_COL},amount_of_rides,total_distance_between_stations")
         
         
