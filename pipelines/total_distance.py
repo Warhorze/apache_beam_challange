@@ -127,7 +127,7 @@ def main(argv=None, save_main_session=True):
                 | "Group by Key" >> beam.CoGroupByKey()
                 | "Calculate Total Distance" >> beam.ParDo(CalculateDistanceAllRides())
             #   | "Sort by total distances" >> beam.transforms.combiners.Top.Of(100, key=lambda x: x[1]) 
-             #   | "Flatten to dicts" >> beam.FlatMap(lambda x: x) 
+            #   | "Flatten to dicts" >> beam.FlatMap(lambda x: x) 
                 | "Reformat Output" >> beam.Map(lambda x: format_csv([x[0][0],x[0][1], x[1],x[2]])) 
         )
 
